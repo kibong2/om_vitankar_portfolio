@@ -4,6 +4,7 @@
 // kind: engine | airfoil | console | pass
 // covers: (console only) image URLs shown on the screen
 // aoa: (airfoil only) CSS selector of the angle-of-attack slider
+// <div slot="tag">...</div> inside <Scene3D> puts extra controls next to the label
 // The drawing code is in src/lib/scene3d.ts
 interface Props {
   kind: 'engine' | 'airfoil' | 'console' | 'pass';
@@ -20,7 +21,7 @@ const { kind, label = '', model, covers = [], aoa, description } = Astro.props;
   <canvas role="img" aria-label={description}></canvas>
   <span class="corner tl"></span><span class="corner tr"></span>
   <span class="corner bl"></span><span class="corner br"></span>
-  <span class="label tag-label">{label}</span>
+  <div class="tag-row"><span class="label">{label}</span><slot name="tag" /></div>
 </div>
 
 <script>
@@ -31,7 +32,8 @@ const { kind, label = '', model, covers = [], aoa, description } = Astro.props;
 <style>
   .scene { position: relative; width: 100%; max-width: 34rem; aspect-ratio: 1 / 1; margin-inline: auto; }
   canvas { width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
-  .tag-label { position: absolute; top: -1.4rem; left: 0; }
+  /* the small label above the scene, with room for extra controls next to it (slot="tag") */
+  .tag-row { position: absolute; top: -2rem; left: 0; display: flex; align-items: center; gap: 0.9rem; z-index: 2; }
   /* small viewfinder corners */
   .corner { position: absolute; width: 1.2rem; height: 1.2rem; border: 0 solid var(--muted); pointer-events: none; }
   .tl { top: 0; left: 0; border-top-width: 1px; border-left-width: 1px; }
