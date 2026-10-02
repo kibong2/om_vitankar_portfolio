@@ -80,7 +80,7 @@ const c = contact.data;
           <button class="btn" type="button" data-v-next aria-label="Next project">→</button>
           <a class="btn" data-v-open href="#">Open ↗</a>
         </p>
-        <p class="label">use ← → keys</p>
+        <p class="label">scroll, or use ← → keys</p>
       </div>
     </div>
 
@@ -144,18 +144,25 @@ const c = contact.data;
     <Scene3D kind="pass" label="TRK_10 0.984" model={url('/models/pass.glb')} description="Crumpled 3D boarding pass" />
     <div data-reveal>
       <h2>Contact me</h2>
-      <p class="label">PASSENGER: OM VITANKAR · DESTINATION: AEROSPACE</p>
-      <ul class="links">
-        <li><a class="btn" href={`mailto:${c.email}`}>Email</a> <span class="label">{c.email}</span></li>
-        <li><a class="btn" href={c.linkedin} rel="noopener">LinkedIn</a></li>
-        <li><a class="btn solid" href={url(c.resume)} download>Download resume</a></li>
-      </ul>
+      <div class="ticket">
+        <p class="label ticket-head">BOARDING PASS · PASSENGER OM VITANKAR</p>
+        <a class="trow" href={`mailto:${c.email}`}>
+          <span class="label">Email</span><span class="val">{c.email}</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="trow" href={c.linkedin} rel="noopener">
+          <span class="label">LinkedIn</span><span class="val">{c.linkedin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="btn solid wide" href={url(c.resume)} download>Download resume</a>
+        <p class="label ticket-foot">DESTINATION: AEROSPACE</p>
+      </div>
     </div>
   </section>
 </Layout>
 
 <script>
   import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  gsap.registerPlugin(ScrollTrigger);
   const covers: string[] = JSON.parse(document.querySelector<HTMLElement>('[data-scene="console"]')!.dataset.covers || '[]');
 
   // ---- Console viewer: switch the project shown on the 3D screen ----
@@ -174,16 +181,40 @@ const c = contact.data;
     (q('[data-v-open]') as HTMLAnchorElement).href = it.href;
     dispatchEvent(new CustomEvent('console:screen', { detail: { index: i } }));
   };
-  q('[data-v-prev]').addEventListener('click', () => show(i - 1));
-  q('[data-v-next]').addEventListener('click', () => show(i + 1));
+  // Scrolling through the section flips the projects (the console stays pinned in place).
+  // Buttons and arrow keys scroll to the matching spot, so everything stays in sync.
+  let st: ScrollTrigger | null = null;
+  const go = (n: number) => {
+    const target = (n + items.length) % items.length;
+    if (st && st.enabled && scrollY >= st.start - 1 && scrollY <= st.end + 1) {
+      window.scrollTo({ top: st.start + ((target + 0.5) / items.length) * (st.end - st.start), behavior: 'smooth' });
+    } else show(target);
+  };
+  q('[data-v-prev]').addEventListener('click', () => go(i - 1));
+  q('[data-v-next]').addEventListener('click', () => go(i + 1));
   let inView = false;
   new IntersectionObserver(([e]) => (inView = e.isIntersecting), { threshold: 0.3 }).observe(viewer);
   addEventListener('keydown', (e) => {
     if (!inView || (e.target as HTMLElement).matches('input, textarea')) return;
-    if (e.key === 'ArrowRight') show(i + 1);
-    if (e.key === 'ArrowLeft') show(i - 1);
+    if (e.key === 'ArrowRight') go(i + 1);
+    if (e.key === 'ArrowLeft') go(i - 1);
   });
   show(0);
+
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    st = ScrollTrigger.create({
+      trigger: viewer,
+      start: 'center center',
+      end: () => '+=' + Math.round(items.length * innerHeight * 0.5), // half a screen of scrolling per project
+      pin: true,
+      anticipatePin: 1,
+      onUpdate: (self) => {
+        const n = Math.min(items.length - 1, Math.floor(self.progress * items.length));
+        if (n !== i) show(n);
+      },
+    });
+    addEventListener('load', () => ScrollTrigger.refresh());
+  }
 
   // ---- Page transition: the console screen zooms up to fill the window, then the project page opens ----
   const openLink = q('[data-v-open]') as HTMLAnchorElement;
@@ -212,6 +243,7 @@ const c = contact.data;
   const setView = (v: string) => {
     viewer.hidden = v === 'list';
     listEl.hidden = v !== 'list';
+    if (st) { v === 'list' ? st.disable() : st.enable(); ScrollTrigger.refresh(); }
     document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
     try { localStorage.setItem('projectView', v); } catch { /* ignore */ }
   };
@@ -267,6 +299,13 @@ const c = contact.data;
   .card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
 
   #aoa { width: 100%; max-width: 20rem; display: block; margin-top: 0.75rem; accent-color: var(--amber); }
-  .links { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 0.9rem; justify-items: start; }
-  .links .btn { min-width: 11rem; text-align: center; }
+  /* contact card: one clean boarding-pass style panel */
+  .ticket { max-width: 30rem; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); padding: 1.25rem 1.5rem 1rem; margin-top: 1.25rem; }
+  .ticket-head { margin: 0 0 0.9rem; }
+  .ticket-foot { margin: 1rem 0 0; padding-top: 0.8rem; border-top: 1px dashed var(--line); }
+  .trow { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.75rem; align-items: baseline; padding: 0.85rem 0; border-top: 1px dashed var(--line); text-decoration: none; color: var(--text); }
+  .trow .val { font-family: var(--font-mono); font-size: 0.9rem; overflow-wrap: anywhere; }
+  .trow .go { color: var(--amber); }
+  .trow:hover .val, .trow:hover .go { color: var(--amber); }
+  .btn.wide { display: block; width: 100%; text-align: center; margin-top: 0.9rem; }
 </style>
