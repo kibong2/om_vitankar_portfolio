@@ -33,6 +33,7 @@ const {
         try { root.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; }
         catch (e) { root.dataset.theme = 'dark'; }
         if (!intro) return;
+        root.dataset.loading = '1'; // the loading screen (Loader.astro) removes this when everything is ready
         var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
         var forced = /[?&]intro/.test(location.search); // add ?intro to the URL to replay it
         var seen = false;
@@ -40,7 +41,7 @@ const {
         if (!reduce && (forced || !seen)) {
           root.dataset.intro = 'play';
           // safety net: never leave the page hidden if something goes wrong
-          setTimeout(function () { if (root.dataset.intro === 'play') root.dataset.intro = 'done'; }, 6000);
+          setTimeout(function () { if (root.dataset.intro === 'play') root.dataset.intro = 'done'; }, 14000);
         }
       })();
     </script>

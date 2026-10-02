@@ -3,6 +3,7 @@
 // Activities, Contact (3D crumpled boarding pass). All text comes from src/content/.
 import Layout from '../layouts/Layout.astro';
 import Intro from '../components/Intro.astro';
+import Loader from '../components/Loader.astro';
 import HeroFlight from '../components/HeroFlight.astro';
 import SplitFlap from '../components/SplitFlap.astro';
 import Scene3D from '../components/Scene3D.astro';
@@ -34,6 +35,7 @@ const c = contact.data;
 ---
 
 <Layout intro>
+  <Loader />
   <Intro />
 
   <!-- HERO -->

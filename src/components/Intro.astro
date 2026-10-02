@@ -75,19 +75,25 @@
       gsap.ticker.add(tick);
     };
 
-    const f = (window as any).__flight;
-    if (f?.ready && !f.failed) go();
-    else if (f?.failed) end(true);
-    else {
-      addEventListener('flight:ready', () => ((window as any).__flight?.failed ? end(true) : go()), { once: true });
-      setTimeout(() => { if (!started) end(true); }, 2500); // 3D too slow: just lift the curtain
-    }
+    // Wait for the loading screen to finish before anything starts
+    const arm = () => {
+      const f = (window as any).__flight;
+      if (f?.ready && !f.failed) go();
+      else if (f?.failed) end(true);
+      else {
+        addEventListener('flight:ready', () => ((window as any).__flight?.failed ? end(true) : go()), { once: true });
+        setTimeout(() => { if (!started) end(true); }, 2500); // 3D too slow: just lift the curtain
+      }
+  
+      setTimeout(() => end(true), 8000); // safety net: the curtain can never stay up
+  
+      const skip = () => end(true);
+      overlay.querySelector('[data-intro-skip]')!.addEventListener('click', skip);
+      ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, skip, { once: true, passive: true }));
+    };
+    if (root.dataset.loading) addEventListener('site:loaded', arm, { once: true });
+    else arm();
 
-    setTimeout(() => end(true), 8000); // safety net: the curtain can never stay up
-
-    const skip = () => end(true);
-    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, skip, { once: true, passive: true }));
-    overlay.querySelector('[data-intro-skip]')!.addEventListener('click', skip);
   }
 </script>
 

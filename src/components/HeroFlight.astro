@@ -333,7 +333,9 @@ const layers = [
     jumpToRest(); // the intro gave up before we were ready
     if (!raf) raf = requestAnimationFrame(frame);
   } else {
-    setTimeout(begin, 250);
+    const go = () => setTimeout(begin, 250);
+    if (root.dataset.loading) addEventListener('site:loaded', go, { once: true });
+    else go();
     if (!raf) raf = requestAnimationFrame(frame);
   }
 

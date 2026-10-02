@@ -1,0 +1,85 @@
+---
+// Loading screen. Covers the page from the first paint until the fonts, the page and the 3D
+// Concorde are ready (at least ~1 second so it never just flashes), then fades out and the
+// Concorde intro / flip-name show begins ("site:loaded" event).
+// Layout.astro sets html[data-loading] before the page paints; this script removes it.
+// Safety: it always gives up after 6 seconds, and is hidden if JavaScript is off.
+---
+<div class="loader" data-loader role="status" aria-live="polite" aria-label="Loading">
+  <noscript><style>.loader { display: none !important; }</style></noscript>
+  <div class="inner">
+    <p class="label">LOADING</p>
+    <div class="track">
+      <i class="fill" data-fill></i>
+      <!-- little Concorde that rides along the progress bar -->
+      <svg class="jet" data-jet viewBox="0 0 200 44" width="46" height="10" aria-hidden="true">
+        <path fill="#e6e9ee" d="M4 14 L22 3 L30 3 L35 14 L128 14.5 L168 13.5 L184 17 L199 23 L184 22 L168 21 L128 21.6 L40 22 L4 18 Z" />
+        <path fill="#9aa1ad" d="M50 21.5 L12 27.5 L20 28.5 L128 22.5 Z" />
+      </svg>
+    </div>
+    <b class="pct" data-pct>000</b>
+  </div>
+</div>
+
+<script>
+  import gsap from 'gsap';
+
+  const root = document.documentElement;
+  const loader = document.querySelector<HTMLElement>('[data-loader]')!;
+
+  if (!root.dataset.loading) {
+    loader.remove();
+  } else {
+    const fill = loader.querySelector<HTMLElement>('[data-fill]')!;
+    const jet = loader.querySelector<HTMLElement>('[data-jet]')!;
+    const pct = loader.querySelector<HTMLElement>('[data-pct]')!;
+    const t0 = performance.now();
+    let shown = 0;
+    let finished = false;
+    const ready = { page: document.readyState === 'complete', fonts: false };
+    addEventListener('load', () => (ready.page = true));
+    document.fonts?.ready.then(() => (ready.fonts = true), () => (ready.fonts = true));
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      gsap.ticker.remove(tick);
+      delete root.dataset.loading;           // un-hides scrolling
+      dispatchEvent(new Event('site:loaded')); // the intro / plane / name flip start now
+      gsap.to(loader, { opacity: 0, duration: 0.5, onComplete: () => loader.remove() });
+    };
+
+    function tick() {
+      const f = (window as any).__flight;
+      const flightOk = !!(f && (f.ready || f.failed)); // 3D plane built (or unavailable)
+      const elapsed = performance.now() - t0;
+      const allReady = ready.page && ready.fonts && flightOk;
+      // each finished job moves the bar forward; time creeps it along so it never looks frozen
+      let target = (ready.page ? 0.3 : 0) + (ready.fonts ? 0.2 : 0) + (flightOk ? 0.4 : 0);
+      target = Math.max(target, Math.min(0.6, elapsed / 4000));
+      if (allReady && elapsed >= 1000) target = 1;
+      shown += (Math.min(target, 1) - shown) * 0.1;
+      const p = Math.min(1, shown);
+      fill.style.transform = `scaleX(${p})`;
+      jet.style.left = p * 100 + '%';
+      pct.textContent = String(Math.round(p * 100)).padStart(3, '0');
+      if (p > 0.995 && allReady) finish();
+    }
+    gsap.ticker.add(tick);
+    setTimeout(finish, 6000); // never get stuck
+  }
+</script>
+
+<style>
+  .loader {
+    position: fixed; inset: 0; z-index: 400; background: #0a0d12; color: #e6e9ee;
+    display: grid; place-items: center;
+  }
+  .inner { width: min(22rem, 80vw); display: grid; gap: 0.9rem; justify-items: center; }
+  .label { color: #8b94a3; letter-spacing: 0.3em; }
+  .track { position: relative; width: 100%; height: 2px; background: rgba(255, 176, 0, 0.18); margin-block: 0.6rem; }
+  .fill { position: absolute; inset: 0; background: #ffb000; transform-origin: left; transform: scaleX(0); }
+  .jet { position: absolute; top: -8px; left: 0; transform: translateX(-50%); }
+  .pct { font-family: var(--font-pixel); color: #ffb000; font-weight: 400; font-size: 1rem; letter-spacing: 0.1em; }
+  :global(html[data-loading]) { overflow: hidden; }
+</style>

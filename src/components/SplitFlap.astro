@@ -28,6 +28,7 @@ const chars = text.toUpperCase().split('');
   // With no intro (returning visit) the name still does a quick flip; with reduce motion it just shows.
   const POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const root = document.documentElement;
   const introPending = document.documentElement.dataset.intro === 'play';
 
   document.querySelectorAll<HTMLElement>('[data-splitflap]').forEach((el) => {
@@ -70,7 +71,11 @@ const chars = text.toUpperCase().split('');
       el.style.cursor = 'pointer';
       el.title = 'Click to flip';
       el.addEventListener('click', quickFlip);
-      if (!introPending) quickFlip(); // no intro this time: still give the name a short flip
+      if (!introPending) {
+        // no intro this time: still give the name a short flip (after the loading screen)
+        if (root.dataset.loading) addEventListener('site:loaded', quickFlip, { once: true });
+        else quickFlip();
+      }
     }
 
     // Waiting for the intro: show blank tiles until the plane reaches them
