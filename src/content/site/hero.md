@@ -1,4 +1,4 @@
 ---
 title: Om Vitankar
-tagline: Aerospace engineering hopeful who builds stuff to learn it
+tagline: Aspiring aerospace engineer who is interested in everything all at once
 ---
