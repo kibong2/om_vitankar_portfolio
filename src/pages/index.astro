@@ -62,14 +62,16 @@ const c = contact.data;
 
   <!-- PROJECTS: console viewer -->
   <section class="wrap section" id="projects">
-    <h2 data-reveal>Projects</h2>
+    <div class="proj-head" data-reveal>
+      <h2>Projects</h2>
+      <!-- the one and only Console / List switch: it never moves, so nothing jumps when you click -->
+      <div class="seg" role="group" aria-label="Project view">
+        <button type="button" class="chip" data-view="console" aria-pressed="true">Console</button>
+        <button type="button" class="chip" data-view="list" aria-pressed="false">List</button>
+      </div>
+    </div>
     <div class="duo viewer" data-viewer data-projects={JSON.stringify(viewerData)}>
-      <Scene3D kind="console" label="TRK_03 0.938" covers={covers} model={url('/models/console.glb')} description="3D handheld console showing the selected project">
-        <div slot="tag" class="seg" role="group" aria-label="Project view">
-          <button type="button" class="chip" data-view="console" aria-pressed="true">Console</button>
-          <button type="button" class="chip" data-view="list" aria-pressed="false">List</button>
-        </div>
-      </Scene3D>
+      <Scene3D kind="console" label="TRK_03 0.938" covers={covers} model={url('/models/console.glb')} description="3D handheld console showing the selected project" />
       <div data-reveal>
         <p class="num"><b data-v-num>01</b><span class="label"> / {pad(projects.length - 1)}</span></p>
         <h3 data-v-title class="v-title"></h3>
@@ -86,12 +88,6 @@ const c = contact.data;
 
     <!-- LIST view: all projects, filterable. Hidden until you switch to it. -->
     <div data-list hidden>
-    <div class="list-head">
-      <div class="seg" role="group" aria-label="Project view">
-        <button type="button" class="chip" data-view="console" aria-pressed="false">Console</button>
-        <button type="button" class="chip" data-view="list" aria-pressed="true">List</button>
-      </div>
-    </div>
     <div class="filters" role="group" aria-label="Filter projects">
       {['All', 'Aerospace', 'Builds', 'Code'].map((f, i) => (
         <button class="chip" type="button" data-filter={f} aria-pressed={String(i === 0)}>{f}</button>
@@ -239,8 +235,9 @@ const c = contact.data;
 
   .viewer { margin-block: 3rem 2rem; }
   .viewer[hidden], [data-list][hidden] { display: none; }
+  .proj-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-bottom: 0.5rem; }
+  .proj-head h2 { margin: 0; }
   .seg { display: flex; gap: 0.35rem; }
-  .list-head { margin: 2rem 0 1.25rem; }
   .num b { font-family: var(--font-pixel); font-size: clamp(2.5rem, 8vw, 4rem); color: var(--amber); font-weight: 400; }
   .v-title { font-family: var(--font-sans); color: var(--text); font-size: 1.4rem; margin: 0.25rem 0 0.75rem; letter-spacing: 0; }
   .controls { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 1.25rem 0 0.75rem; }
