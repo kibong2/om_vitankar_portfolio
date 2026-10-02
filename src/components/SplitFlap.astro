@@ -1,0 +1,102 @@
+---
+// Split-flap text. Renders the final text on the server (so it works with no JS
+// and for screen readers), then a script makes each tile "flip" through random
+// characters before landing on the real one.
+//
+// Usage: <SplitFlap text="OM VITANKAR" />
+interface Props {
+  text: string;
+}
+const { text } = Astro.props;
+const chars = text.toUpperCase().split('');
+---
+
+<span class="flap" data-splitflap aria-label={text}>
+  {chars.map((c) => (
+    <span class:list={['tile', c === ' ' && 'gap']} aria-hidden="true" data-char={c}>
+      <span class="face">{c === ' ' ? '' : c}</span>
+    </span>
+  ))}
+</span>
+
+<script>
+  import gsap from 'gsap';
+
+  // The Concorde intro (Intro.astro) drives the flips: it calls
+  //   el.splitflap.playTile(i)  when the plane passes tile i, and
+  //   el.splitflap.finish()     if the visitor skips.
+  // With no intro (returning visit) the name still does a quick flip; with reduce motion it just shows.
+  const POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const introPending = document.documentElement.dataset.intro === 'play';
+
+  document.querySelectorAll<HTMLElement>('[data-splitflap]').forEach((el) => {
+    const tiles = [...el.querySelectorAll<HTMLElement>('.tile:not(.gap)')];
+    const timelines: gsap.core.Timeline[] = [];
+
+    const playTile = (i: number, delay = 0, flips = 6) => {
+      const tile = tiles[i];
+      if (!tile) return;
+      const face = tile.querySelector<HTMLElement>('.face')!;
+      const target = tile.dataset.char!;
+      const tl = gsap.timeline({ delay });
+      for (let n = 0; n < flips; n++) {
+        const last = n === flips - 1;
+        tl.to(face, { scaleY: 0, duration: 0.05, ease: 'power1.in' })
+          .call(() => { face.textContent = last ? target : POOL[Math.floor(Math.random() * POOL.length)]; })
+          .to(face, { scaleY: 1, duration: 0.05, ease: 'power1.out' });
+      }
+      timelines.push(tl);
+    };
+
+    const finish = () => {
+      timelines.forEach((t) => t.kill());
+      tiles.forEach((t) => {
+        const face = t.querySelector<HTMLElement>('.face')!;
+        face.textContent = t.dataset.char!;
+        gsap.set(face, { scaleY: 1 });
+      });
+    };
+
+    (el as any).splitflap = { playTile, finish };
+
+    // Quick left-to-right flip, used on returning visits and when you click the name
+    const quickFlip = () => {
+      finish();
+      tiles.forEach((t) => (t.querySelector('.face')!.textContent = '·'));
+      tiles.forEach((_, i) => playTile(i, i * 0.06, 4));
+    };
+    if (!reduceMotion) {
+      el.style.cursor = 'pointer';
+      el.title = 'Click to flip';
+      el.addEventListener('click', quickFlip);
+      if (!introPending) quickFlip(); // no intro this time: still give the name a short flip
+    }
+
+    // Waiting for the intro: show blank tiles until the plane reaches them
+    if (introPending) tiles.forEach((t) => (t.querySelector('.face')!.textContent = '·'));
+  });
+</script>
+
+<style>
+  .flap { display: inline-flex; flex-wrap: wrap; gap: 0.18em; font-family: var(--font-pixel); }
+  .tile {
+    position: relative;
+    width: 0.78em; height: 1.1em;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 0.08em;
+    color: var(--amber);
+    line-height: 1;
+    perspective: 400px;
+  }
+  /* the thin horizontal "hinge" line across the middle of each flap */
+  .tile::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 50%;
+    height: 1px; background: var(--bg); opacity: 0.9; pointer-events: none;
+  }
+  .tile.gap { width: 0.4em; background: none; border: 0; }
+  .tile.gap::after { display: none; }
+  .face { display: block; transform-origin: center; }
+</style>

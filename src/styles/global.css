@@ -1,0 +1,133 @@
+/* ===== Theme: "cockpit at night" =====
+   All colours live here as variables. Change one value, the whole site updates. */
+@import '@fontsource/silkscreen/400.css';
+@import '@fontsource/silkscreen/700.css';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/inter';
+
+:root {
+  --bg: #0a0d12;        /* page background (blue-black) */
+  --panel: #121821;     /* cards and project pages */
+  --amber: #ffb000;     /* headings, highlights, borders */
+  --green: #4cc38a;     /* "in flight" / active */
+  --text: #e6e9ee;      /* body copy */
+  --muted: #8b94a3;     /* secondary text (still passes contrast on --bg) */
+  --line: rgba(255, 176, 0, 0.18); /* thin grid lines */
+
+  --font-pixel: 'Silkscreen', 'JetBrains Mono Variable', monospace; /* headings, big labels */
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, Menlo, monospace;
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+
+  --dots: #e6e9ee;      /* halftone dots + 3D object colour */
+
+  --gutter: clamp(1rem, 4vw, 2rem);
+  --max: 68rem;
+}
+
+/* "Day flight": the whole site inverted. Toggled by <html data-theme="light"> */
+:root[data-theme='light'] {
+  --bg: #f3f1ec;
+  --panel: #e6e3dc;
+  --amber: #a85d00;     /* darker amber so it stays readable on light */
+  --green: #1d8456;
+  --text: #0a0d12;
+  --muted: #55606f;
+  --line: rgba(168, 93, 0, 0.28);
+  --dots: #0a0d12;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+html[data-theme='light'] { color-scheme: light; }
+/* Lenis (smooth scroll) adds this class to <html> */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Crosshair cursor on desktop only */
+@media (hover: hover) and (pointer: fine) { body { cursor: crosshair; } a, button, input { cursor: pointer; } }
+
+h1, h2, h3 {
+  font-family: var(--font-pixel);
+  color: var(--amber);
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+a { color: var(--amber); text-underline-offset: 3px; }
+a:hover { color: var(--text); }
+
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+img { max-width: 100%; display: block; }
+
+/* Centred column used by every section */
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
+
+/* Small coordinate-style label, e.g. "N 37°52′ · W 122°15′" */
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Photos get a dark frame with a thin amber border so bright shots don't glare */
+.frame {
+  background: var(--panel);
+  border: 1px solid var(--amber);
+  padding: 0.35rem;
+}
+
+/* Status tags */
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.tag.in-flight { color: var(--green); }
+.tag.boarding  { color: var(--amber); }
+.tag.landed    { color: var(--muted); }
+.tag.diverted  { color: #e0786b; }
+
+/* Things hidden until the Concorde intro finishes (see Intro.astro) */
+.intro-hide { transition: opacity 0.6s; }
+html[data-intro='play'] .intro-hide { opacity: 0; pointer-events: none; }
+
+/* Pages fade in (the project page lands after the console zoom) */
+main { animation: page-in 0.5s ease-out; }
+@keyframes page-in { from { opacity: 0; } }
+
+/* Sections */
+section { position: relative; z-index: 1; }
+.section { padding-block: clamp(3rem, 10vw, 7rem); }
+.duo { display: grid; gap: 2rem; align-items: center; }
+@media (min-width: 52rem) { .duo { grid-template-columns: 1fr 1fr; gap: 4rem; } .duo.flip > :first-child { order: 2; } }
+.prose { max-width: 38rem; }
+.prose p { margin: 0 0 1rem; }
+.btn {
+  display: inline-block; font-family: var(--font-pixel); font-size: 0.85rem; letter-spacing: 0.08em;
+  padding: 0.7rem 1.1rem; border: 1px solid var(--amber); color: var(--amber);
+  background: transparent; text-decoration: none;
+}
+.btn:hover { background: var(--amber); color: var(--bg); }
+.chips { list-style: none; padding: 0; margin: 1rem 0 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.chips li { font-family: var(--font-mono); font-size: 0.8rem; padding: 0.25rem 0.6rem; border: 1px solid var(--line); background: var(--panel); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

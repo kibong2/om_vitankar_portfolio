@@ -1,0 +1,102 @@
+---
+// Wraps every page: <head>, fonts/theme, and the shared header + footer.
+import '../styles/global.css';
+import { url } from '../lib/url';
+import Backdrop from '../components/Backdrop.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import Altimeter from '../components/Altimeter.astro';
+
+interface Props {
+  intro?: boolean; // true only on the homepage: allows the Concorde intro
+  title?: string;
+  description?: string;
+}
+const {
+  intro = false,
+  title = 'Om Vitankar',
+  description = 'Aerospace engineering hopeful who builds stuff to learn it.',
+} = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0d12" />
+    <link rel="icon" type="image/svg+xml" href={url('/favicon.svg')} />
+    <title>{title}</title>
+    <!-- Runs before the page paints: sets night/day theme and decides whether the intro plays -->
+    <script is:inline define:vars={{ intro }}>
+      (function () {
+        var root = document.documentElement;
+        try { root.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; }
+        catch (e) { root.dataset.theme = 'dark'; }
+        if (!intro) return;
+        var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var forced = /[?&]intro/.test(location.search); // add ?intro to the URL to replay it
+        var seen = false;
+        try { seen = !!sessionStorage.getItem('introSeen'); } catch (e) {}
+        if (!reduce && (forced || !seen)) {
+          root.dataset.intro = 'play';
+          // safety net: never leave the page hidden if something goes wrong
+          setTimeout(function () { if (root.dataset.intro === 'play') root.dataset.intro = 'done'; }, 6000);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Backdrop />
+    <ThemeToggle />
+    <Altimeter />
+    <header class="top">
+      <div class="wrap bar">
+        <a class="brand" href={url('/')}>OV</a>
+        <nav class="intro-hide" aria-label="Main">
+          <a href={url('/#about')}>About</a>
+          <a href={url('/#projects')}>Projects</a>
+          <a href={url('/#activities')}>Activities</a>
+          <a href={url('/#contact')}>Contact</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main"><slot /></main>
+
+    <footer class="wrap foot label">
+      <span>© {new Date().getFullYear()} Om Vitankar</span>
+    </footer>
+  </body>
+</html>
+
+<script>
+  // Smooth scroll (Lenis) + fade-up reveals (GSAP ScrollTrigger). Skipped with reduce motion.
+  import Lenis from 'lenis';
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    gsap.registerPlugin(ScrollTrigger);
+    const lenis = new Lenis({ anchors: true });
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add((time) => lenis.raf(time * 1000));
+    gsap.ticker.lagSmoothing(0);
+
+    document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => {
+      gsap.from(el, { y: 32, opacity: 0, duration: 0.8, ease: 'power2.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
+    });
+  }
+</script>
+
+<style>
+  .skip-link { position: absolute; left: 0.5rem; top: -4rem; z-index: 300; background: var(--bg); color: var(--amber); border: 1px solid var(--amber); padding: 0.5rem 0.8rem; font-family: var(--font-mono); }
+  .skip-link:focus { top: 0.5rem; }
+  .top { border-bottom: 1px solid var(--line); }
+  .bar { display: flex; justify-content: space-between; align-items: center; padding-block: 1rem; }
+  .brand { font-family: var(--font-mono); font-weight: 700; text-decoration: none; letter-spacing: 0.1em; }
+  nav { display: flex; gap: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem; }
+  nav a { text-decoration: none; color: var(--text); }
+  nav a:hover { color: var(--amber); }
+  .foot { padding-block: 3rem; border-top: 1px solid var(--line); margin-top: 4rem; }
+</style>

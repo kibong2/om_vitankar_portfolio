@@ -1,0 +1,32 @@
+---
+// Full Activities page: one section per file in src/content/activities/. Write as much as you like in each.
+import Layout from '../layouts/Layout.astro';
+import { render } from 'astro:content';
+import { getActivities } from '../lib/projects';
+import { url } from '../lib/url';
+
+const activities = await getActivities();
+const rendered = await Promise.all(activities.map(async (a) => ({ a, Content: (await render(a)).Content })));
+---
+
+<Layout title="Activities · Om Vitankar" description="Things I do outside the classroom.">
+  <div class="wrap page">
+    <a class="label back" href={url('/#activities')}>← home</a>
+    <h1>Activities</h1>
+    {rendered.map(({ a, Content }) => (
+      <section id={a.id} class="act">
+        <p class="label">{a.data.period || a.data.tagline}</p>
+        <h2>{a.data.title}</h2>
+        <div class="prose"><Content /></div>
+      </section>
+    ))}
+  </div>
+</Layout>
+
+<style>
+  .page { padding-block: 3rem; max-width: 46rem; position: relative; z-index: 1; }
+  .back { text-decoration: none; display: inline-block; margin-bottom: 1.5rem; }
+  h1 { font-size: clamp(1.6rem, 5vw, 2.8rem); font-weight: 400; margin: 0 0 2rem; }
+  .act { padding-block: 2rem; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }
+  h2 { font-size: 1.3rem; font-weight: 400; margin: 0.25rem 0 1rem; }
+</style>

@@ -1,0 +1,34 @@
+---
+// Small side readout that "climbs" as you scroll down the page.
+---
+<div class="alt" aria-hidden="true">
+  <span class="label">ALT</span>
+  <b data-alt>00000</b>
+  <span class="label">FT</span>
+  <i class="bar"><i data-alt-bar></i></i>
+</div>
+
+<script>
+  const num = document.querySelector('[data-alt]')!;
+  const bar = document.querySelector<HTMLElement>('[data-alt-bar]')!;
+  const update = () => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    const p = max > 0 ? Math.min(1, scrollY / max) : 0;
+    num.textContent = String(Math.round((p * 41000) / 100) * 100).padStart(5, '0'); // 0 -> 41,000 ft (Concorde cruise!)
+    bar.style.height = p * 100 + '%';
+  };
+  addEventListener('scroll', update, { passive: true });
+  addEventListener('resize', update);
+  update();
+</script>
+
+<style>
+  .alt {
+    position: fixed; right: 1rem; top: 50%; transform: translateY(-50%); z-index: 40;
+    display: none; flex-direction: column; align-items: center; gap: 0.3rem; pointer-events: none;
+  }
+  @media (min-width: 60rem) { .alt { display: flex; } }
+  b { font-family: var(--font-mono); font-size: 0.7rem; color: var(--amber); font-weight: 500; }
+  .bar { display: block; width: 1px; height: 6rem; background: var(--line); position: relative; margin-top: 0.3rem; }
+  .bar i { position: absolute; bottom: 0; left: -1px; width: 3px; background: var(--amber); }
+</style>

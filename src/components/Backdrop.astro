@@ -1,0 +1,112 @@
+---
+// Fixed background: drifting halftone dot clouds, two big halftone stars and tiny
+// pixel stars, drawn on one 2D canvas. Colour comes from --dots so it flips with the theme.
+---
+<canvas id="backdrop" aria-hidden="true"></canvas>
+
+<script>
+  const cv = document.getElementById('backdrop') as HTMLCanvasElement;
+  const ctx = cv.getContext('2d')!;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mobile = matchMedia('(pointer: coarse)').matches || innerWidth < 700;
+
+  let W = 0, H = 0, color = '#e6e9ee';
+  const readColor = () => (color = getComputedStyle(document.documentElement).getPropertyValue('--dots').trim() || color);
+  new MutationObserver(() => { readColor(); draw(performance.now() / 1000); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  function resize() {
+    const dpr = Math.min(devicePixelRatio, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    readColor();
+    draw(performance.now() / 1000);
+  }
+  addEventListener('resize', resize);
+
+  // Positions are fractions of the screen so they work at any size.
+  const clouds = [
+    { x: 0.1, y: 0.25, r: 0.2 }, { x: 0.9, y: 0.6, r: 0.24 }, { x: 0.5, y: 0.95, r: 0.22 },
+  ];
+  const stars = mobile
+    ? [{ x: 0.85, y: 0.2, s: 0.13, rot: 0.4, spin: 0.03 }]
+    : [{ x: 0.88, y: 0.2, s: 0.15, rot: 0.4, spin: 0.03 }, { x: 0.1, y: 0.78, s: 0.18, rot: -0.3, spin: -0.02 }];
+  // tiny pixel sparkles, fixed random spots
+  const sparks = Array.from({ length: mobile ? 14 : 30 }, () => ({ x: Math.random(), y: Math.random(), ph: Math.random() * 6 }));
+  const STEP = mobile ? 14 : 11; // dot spacing in px
+
+  function draw(t: number) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = color;
+    const off = -scrollY * 0.12; // slow parallax
+    const drift = reduce ? 0 : 1;
+
+    // --- halftone clouds ---
+    ctx.globalAlpha = 0.13;
+    ctx.beginPath();
+    for (let gy = 0; gy < H; gy += STEP) {
+      for (let gx = 0; gx < W; gx += STEP) {
+        let d = 0;
+        for (const c of clouds) {
+          const cx = (c.x + Math.sin(t * 0.05 + c.r * 20) * 0.03 * drift) * W;
+          const cy = (c.y + Math.cos(t * 0.04 + c.x * 9) * 0.03 * drift) * H + off;
+          const r = c.r * Math.max(W, H);
+          const dx = gx - cx, dy = gy - cy;
+          d += Math.exp(-(dx * dx + dy * dy) / (r * r));
+        }
+        const rad = Math.min(1, d) * STEP * 0.5;
+        if (rad > 0.6) { ctx.moveTo(gx + rad, gy); ctx.arc(gx, gy, rad, 0, 6.283); }
+      }
+    }
+    ctx.fill();
+
+    // --- big halftone stars (4-point, brighter in the middle) ---
+    ctx.globalAlpha = 0.38;
+    for (const st of stars) {
+      const cx = st.x * W, cy = st.y * H + off * 1.6;
+      const size = st.s * Math.max(W, H);
+      const a = st.rot + t * st.spin * drift;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      ctx.beginPath();
+      for (let gy = cy - size; gy < cy + size; gy += STEP * 0.7) {
+        for (let gx = cx - size; gx < cx + size; gx += STEP * 0.7) {
+          const dx = gx - cx, dy = gy - cy;
+          const x = (dx * ca + dy * sa) / size, y = (-dx * sa + dy * ca) / size;
+          const q = Math.abs(x) ** 0.55 + Math.abs(y) ** 0.55; // <1 means inside the star
+          if (q >= 1) continue;
+          const rad = Math.min(1, (1 - q) * 2.4) * STEP * 0.36;
+          if (rad > 0.5) { ctx.moveTo(gx + rad, gy); ctx.arc(gx, gy, rad, 0, 6.283); }
+        }
+      }
+      ctx.fill();
+    }
+
+    // --- pixel sparkles (a little plus sign that twinkles) ---
+    ctx.globalAlpha = 1;
+    for (const s of sparks) {
+      const tw = reduce ? 0.6 : 0.35 + 0.65 * Math.abs(Math.sin(t * 0.6 + s.ph));
+      ctx.globalAlpha = tw * 0.7;
+      const x = Math.round(s.x * W), y = Math.round(s.y * H + off * 0.5) % H;
+      ctx.fillRect(x - 3, y, 7, 1); ctx.fillRect(x, y - 3, 1, 7);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ~30fps loop, paused when the tab is hidden; a single still frame with reduce motion
+  resize();
+  if (!reduce) {
+    let lastDraw = 0;
+    const tick = (now: number) => {
+      if (now - lastDraw > 33 && !document.hidden) { lastDraw = now; draw(now / 1000); }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  } else {
+    addEventListener('scroll', () => draw(0), { passive: true });
+  }
+</script>
+
+<style>
+  #backdrop { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+</style>

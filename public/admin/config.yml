@@ -1,0 +1,93 @@
+# Decap CMS settings: what the web editor at /admin/ lets you edit.
+# To add a new field to projects, add a line under the "projects" fields below
+# (and the same field in src/content.config.ts).
+
+backend:
+  name: github
+  repo: kibong2/om_vitankar_portfolio
+  branch: main
+  # TODO (needed once the site is live): the address of your GitHub login helper.
+  # See EDITING.md, "One-time setup for the online editor".
+  # base_url: https://YOUR-OAUTH-HELPER.example.workers.dev
+
+# Lets you test the editor on your own computer before publishing anything:
+# run `npx decap-server` next to `npm run dev`, then open http://localhost:4321/om_vitankar_portfolio/admin/index.html
+local_backend: true
+
+media_folder: public/images   # where uploaded pictures are saved
+public_folder: /images        # how the site refers to them
+
+collections:
+  - name: projects
+    label: Projects
+    label_singular: Project
+    folder: src/content/projects
+    extension: md
+    create: true
+    slug: "{{slug}}"
+    summary: "{{flight}} · {{title}} ({{status}})"
+    fields:
+      - { label: Title, name: title, widget: string }
+      - { label: Flight code (shown on the board, e.g. OV108), name: flight, widget: string, required: false }
+      - { label: Category, name: category, widget: select, options: [Aerospace, Builds, Code] }
+      - { label: Status, name: status, widget: select, options: [BOARDING, IN FLIGHT, LANDED, DIVERTED] }
+      - { label: Date, name: date, widget: datetime, date_format: YYYY-MM-DD, time_format: false, format: YYYY-MM-DD }
+      - { label: Tools, name: tools, widget: list, default: [] }
+      - { label: One-line summary, name: summary, widget: text }
+      - { label: Cover image, name: cover, widget: image, required: false, media_folder: /public/images/covers, public_folder: /images/covers }
+      - label: Links
+        name: links
+        widget: list
+        default: []
+        fields:
+          - { label: Label, name: label, widget: string }
+          - { label: URL, name: url, widget: string }
+      - { label: Show in featured (first on the console), name: featured, widget: boolean, default: false }
+      - { label: Order (lower number = higher up), name: order, widget: number, value_type: int, default: 100 }
+      - { label: Hide from the site (draft), name: draft, widget: boolean, default: false }
+      - { label: Story, name: body, widget: markdown }
+
+  - name: activities
+    label: Activities
+    label_singular: Activity
+    folder: src/content/activities
+    extension: md
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - { label: Title, name: title, widget: string }
+      - { label: One-liner (homepage card), name: tagline, widget: string }
+      - { label: Period (e.g. 2024 - now), name: period, widget: string, required: false }
+      - { label: Order, name: order, widget: number, value_type: int, default: 100 }
+      - { label: Hide from the site (draft), name: draft, widget: boolean, default: false }
+      - { label: Write-up, name: body, widget: markdown }
+
+  - name: site
+    label: Pages and details
+    files:
+      - label: Hero (name and one-liner)
+        name: hero
+        file: src/content/site/hero.md
+        fields:
+          - { label: Name, name: title, widget: string }
+          - { label: One-liner, name: tagline, widget: string }
+      - label: About me
+        name: about
+        file: src/content/site/about.md
+        fields:
+          - { label: Title, name: title, widget: string }
+          - { label: Text, name: body, widget: markdown }
+      - label: Skills and tools
+        name: skills
+        file: src/content/site/skills.md
+        fields:
+          - { label: Title, name: title, widget: string }
+          - { label: Skills, name: items, widget: list }
+      - label: Contact
+        name: contact
+        file: src/content/site/contact.md
+        fields:
+          - { label: Title, name: title, widget: string }
+          - { label: Email, name: email, widget: string }
+          - { label: LinkedIn URL, name: linkedin, widget: string }
+          - { label: Resume file path, name: resume, widget: string, default: /resume.pdf }

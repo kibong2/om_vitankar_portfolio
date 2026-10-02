@@ -1,0 +1,108 @@
+---
+// First-visit intro. A dark curtain covers the page; the 3D Concorde (HeroFlight.astro) flies
+// across ABOVE it from right to left, its path wipes the curtain away, and each split-flap name
+// tile starts flipping as the plane's nose passes it. When the plane starts its turn, the tagline and
+// nav fade in. Rules: skippable (click / key / scroll / skip button), first visit per session only,
+// off with reduce motion, never blocks the page loading underneath. If the 3D plane can't load
+// (no WebGL, slow), the curtain just lifts after a moment.
+// The decision to play is made in Layout.astro (html[data-intro="play"]).
+---
+<div class="intro" data-intro-overlay aria-hidden="true">
+  <!-- dark curtain that the plane "wipes away" left to right -->
+  <div class="veil">
+    <i class="horizon"></i>
+    <i class="star" style="left:12%;top:20%"></i><i class="star" style="left:30%;top:34%"></i>
+    <i class="star" style="left:48%;top:16%"></i><i class="star" style="left:64%;top:28%"></i>
+    <i class="star" style="left:82%;top:18%"></i><i class="star" style="left:90%;top:40%"></i>
+    <i class="star" style="left:20%;top:70%"></i><i class="star" style="left:72%;top:76%"></i>
+  </div>
+
+  <button class="skip" type="button" data-intro-skip>skip</button>
+</div>
+
+<script>
+  import gsap from 'gsap';
+
+  const root = document.documentElement;
+  const overlay = document.querySelector<HTMLElement>('[data-intro-overlay]')!;
+
+  if (root.dataset.intro !== 'play') {
+    overlay.remove(); // returning visit or reduce motion: hero just shows
+  } else {
+    run();
+  }
+
+  function run() {
+    try { sessionStorage.setItem('introSeen', '1'); } catch { /* ignore */ }
+
+    const flap = document.querySelector<HTMLElement>('[data-splitflap]') as any;
+    // x-centre of each name tile, so we know when the plane's nose passes it
+    const tileX: number[] = flap
+      ? [...flap.querySelectorAll('.tile:not(.gap)')].map((t: Element) => { const r = t.getBoundingClientRect(); return r.left + r.width / 2; })
+      : [];
+    const veil = overlay.querySelector<HTMLElement>('.veil')!;
+    const W = innerWidth;
+
+    let finished = false;
+    let started = false;
+    let next = tileX.length - 1; // tiles flip right to left, following the plane
+
+    const end = (skipped: boolean) => {
+      if (finished) return;
+      finished = true;
+      gsap.ticker.remove(tick);
+      if (skipped) { flap?.splitflap.finish(); dispatchEvent(new Event('flight:skip')); }
+      root.dataset.intro = 'done'; // fades in the tagline, nav and contrail divider
+      gsap.to(overlay, { opacity: 0, duration: 0.6, onComplete: () => overlay.remove() });
+    };
+
+    // every frame: copy the plane's position onto the curtain edge and the name tiles
+    function tick() {
+      const f = (window as any).__flight;
+      if (!f) return;
+      veil.style.setProperty('--x', (f.centerX / W) * 100 + '%');
+      while (flap && next >= 0 && f.noseX <= tileX[next]) flap.splitflap.playTile(next--);
+      if (f.u >= 0.41) { // the plane has crossed the screen and starts to turn
+        while (flap && next >= 0) flap.splitflap.playTile(next--);
+        end(false);
+      }
+    }
+
+    const go = () => {
+      if (started || finished) return;
+      started = true;
+      dispatchEvent(new Event('flight:start'));
+      gsap.ticker.add(tick);
+    };
+
+    const f = (window as any).__flight;
+    if (f?.ready && !f.failed) go();
+    else if (f?.failed) end(true);
+    else {
+      addEventListener('flight:ready', () => ((window as any).__flight?.failed ? end(true) : go()), { once: true });
+      setTimeout(() => { if (!started) end(true); }, 2500); // 3D too slow: just lift the curtain
+    }
+
+    setTimeout(() => end(true), 8000); // safety net: the curtain can never stay up
+
+    const skip = () => end(true);
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, skip, { once: true, passive: true }));
+    overlay.querySelector('[data-intro-skip]')!.addEventListener('click', skip);
+  }
+</script>
+
+<style>
+  .intro { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+  .veil {
+    position: absolute; inset: 0; background: #0a0d12; --x: 120%;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--x) - 14%), transparent var(--x));
+            mask-image: linear-gradient(90deg, #000 calc(var(--x) - 14%), transparent var(--x));
+  }
+  .horizon { position: absolute; left: 0; right: 0; top: 62%; height: 1px; background: rgba(255, 176, 0, 0.25); }
+  .star { position: absolute; width: 2px; height: 2px; background: #e6e9ee; opacity: 0.6; }
+  .skip {
+    position: absolute; right: 1rem; top: 1rem; pointer-events: auto;
+    font-family: var(--font-pixel); font-size: 0.8rem; letter-spacing: 0.08em;
+    color: #e6e9ee; background: transparent; border: 1px solid rgba(230, 233, 238, 0.4); padding: 0.4rem 0.7rem;
+  }
+</style>

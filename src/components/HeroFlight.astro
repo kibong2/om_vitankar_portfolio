@@ -1,0 +1,351 @@
+---
+// The Concorde in the hero: a real 3D model (Three.js) flown along one curved path.
+//   1. it crosses the screen LARGE, close to the camera, entering from the right
+//   2. it banks into a turn, curving away from us to the left (perspective does the shrinking)
+//   3. it ends as a small plane in the distance on the left, facing right, where it stays
+// The contrail is a trail of soft dots dropped along its real path that fade out, so it never cuts off.
+// On the first visit the Intro (Intro.astro) holds a dark curtain that this plane wipes away.
+// Clouds drift in layers behind and in front of the plane, and the whole layer fades out toward
+// the bottom so the clouds melt into the next section. With reduce motion: a still small plane.
+
+// Seeded random so the clouds are the same on every build
+function rng(seed: number) {
+  let s = seed;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+}
+// Clusters of overlapping ellipses = cloud puffs. Coordinates are in a 1000 x 400 box.
+function clouds(seed: number, clusters: number, yMin: number, yMax: number, rMin: number, rMax: number) {
+  const r = rng(seed);
+  const out: { cx: number; cy: number; rx: number; ry: number }[] = [];
+  for (let i = 0; i < clusters; i++) {
+    const cx = r() * 1000, cy = yMin + r() * (yMax - yMin);
+    const n = 4 + Math.floor(r() * 4);
+    for (let j = 0; j < n; j++) {
+      const rx = rMin + r() * (rMax - rMin);
+      out.push({ cx: cx + (r() - 0.5) * rx * 1.6, cy: cy + (r() - 0.5) * 24, rx, ry: rx * 0.42 });
+    }
+  }
+  return out;
+}
+const layers = [
+  { name: 'far', puffs: clouds(11, 7, 195, 265, 40, 80) },
+  { name: 'mid', puffs: clouds(23, 6, 225, 300, 60, 110) },
+  { name: 'bank', puffs: clouds(37, 9, 290, 400, 90, 170) },
+];
+---
+
+<div class="flight" aria-hidden="true" data-flight>
+  {layers.slice(0, 2).map((l) => (
+    <svg class={`clouds ${l.name}`} viewBox="0 0 1000 400" preserveAspectRatio="none">
+      <g id={`hf-${l.name}`}>{l.puffs.map((p) => <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} />)}</g>
+      <use href={`#hf-${l.name}`} x="1000" />
+    </svg>
+  ))}
+
+  <canvas data-flight-canvas></canvas>
+
+  <!-- front cloud bank: drawn over the plane so it can sink into the clouds -->
+  <svg class="clouds bank" viewBox="0 0 1000 400" preserveAspectRatio="none">
+    <g id="hf-bank">{layers[2].puffs.map((p) => <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} />)}</g>
+    <use href="#hf-bank" x="1000" />
+  </svg>
+</div>
+
+<script>
+  import * as THREE from 'three';
+  import gsap from 'gsap';
+
+  const root = document.documentElement;
+  const stage = document.querySelector<HTMLElement>('[data-flight]')!;
+  const canvas = stage.querySelector<HTMLCanvasElement>('[data-flight-canvas]')!;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const css = (v: string) => getComputedStyle(root).getPropertyValue(v).trim();
+
+  // The Intro reads this to move its curtain and flip the name tiles with the plane.
+  const info = { ready: false, failed: false, noseX: -9999, centerX: -9999, u: 0 };
+  (window as any).__flight = info;
+  const announce = () => dispatchEvent(new Event('flight:ready'));
+
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  } catch {
+    info.failed = true; // no WebGL: the page still works, just without the plane
+    announce();
+    throw new Error('HeroFlight: WebGL unavailable');
+  }
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+  const FOV = 35;
+  const camera = new THREE.PerspectiveCamera(FOV, 2, 0.5, 800);
+  camera.position.set(0, 0, 14);
+  const scene = new THREE.Scene();
+
+  const dotsColor = { value: new THREE.Color(css('--dots') || '#e6e9ee') };
+  const amberColor = { value: new THREE.Color(css('--amber') || '#ffb000') };
+  new MutationObserver(() => {
+    dotsColor.value.set(css('--dots'));
+    amberColor.value.set(css('--amber'));
+  }).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+
+  /* ---------- the Concorde (nose points +z, wings along x, up is +y; ~10.8 units long) ---------- */
+  const planeMat = new THREE.ShaderMaterial({
+    uniforms: { uColor: dotsColor },
+    vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    // light bands (like a cartoon shading) in the site's dot colour
+    fragmentShader: `uniform vec3 uColor; varying vec3 vN;
+      void main(){ vec3 n = normalize(vN); if(!gl_FrontFacing) n = -n;
+        float l = dot(n, normalize(vec3(-0.4, 0.8, 0.6))) * 0.5 + 0.5;
+        l = floor(l * 4.0) / 4.0;
+        gl_FragColor = vec4(uColor * (0.35 + 0.65 * l), 1.0); }`,
+    side: THREE.DoubleSide,
+  });
+
+  const jet = new THREE.Group();
+
+  // fuselage: a long thin tube, with the famous drooping nose
+  const fus = new THREE.LatheGeometry(
+    [[0.0, -5.2], [0.2, -5.2], [0.34, -4.2], [0.36, -2], [0.34, 0], [0.3, 2.2], [0.22, 3.8], [0.1, 5.0], [0.02, 5.6]].map(([r, y]) => new THREE.Vector2(r, y)), 28,
+  ).rotateX(Math.PI / 2);
+  const fp = fus.attributes.position;
+  for (let i = 0; i < fp.count; i++) {
+    const z = fp.getZ(i);
+    if (z > 3.2) fp.setY(i, fp.getY(i) - Math.pow((z - 3.2) / 2.4, 2) * 0.3); // nose droop
+  }
+  fus.computeVertexNormals();
+  jet.add(new THREE.Mesh(fus, planeMat));
+
+  // delta wing (right half, mirrored for the left)
+  const wingShape = new THREE.Shape();
+  [[0, -3.2], [0.15, -2], [0.7, 0.5], [2.0, 3.7], [2.0, 4.3], [0, 4.4]].forEach(([x, y], i) => (i ? wingShape.lineTo(x, y) : wingShape.moveTo(x, y)));
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.07, bevelEnabled: false }).rotateX(-Math.PI / 2);
+  const wingR = new THREE.Mesh(wingGeo, planeMat);
+  const wingL = new THREE.Mesh(wingGeo, planeMat);
+  wingL.scale.x = -1;
+  wingR.position.y = wingL.position.y = -0.12;
+  jet.add(wingR, wingL);
+
+  // tail fin
+  const finShape = new THREE.Shape();
+  [[3.2, 0.2], [5.0, 0.2], [5.2, 2.0], [4.4, 2.0]].forEach(([x, y], i) => (i ? finShape.lineTo(x, y) : finShape.moveTo(x, y)));
+  const fin = new THREE.Mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.08, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-0.04, 0, 0), planeMat);
+  jet.add(fin);
+
+  // four engines under the wings, with a small amber glow at the back of each
+  const glowPos: number[] = [];
+  [[0.5], [0.85]].forEach(([x]) => [-1, 1].forEach((sgn) => {
+    const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 1.9, 12).rotateX(Math.PI / 2), planeMat);
+    eng.position.set(sgn * x, -0.3, -3.5);
+    jet.add(eng);
+    glowPos.push(sgn * x, -0.3, -4.5);
+  }));
+  const glow = new THREE.Points(
+    new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(glowPos, 3)),
+    new THREE.ShaderMaterial({
+      uniforms: { uColor: amberColor, uK: { value: 300 } },
+      vertexShader: `uniform float uK; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = 0.7 * uK / -mv.z; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(uColor, smoothstep(0.5, 0.0, d)); }`,
+      transparent: true, depthWrite: false,
+    }),
+  );
+  jet.add(glow);
+
+  const plane = new THREE.Group(); // moves along the path
+  plane.add(jet);
+  scene.add(plane);
+
+  /* ---------- contrail: soft dots dropped along the path, fading out ---------- */
+  const M = 280, LIFE = 2.4;
+  const tPos = new Float32Array(M * 3);
+  const tBirth = new Float32Array(M).fill(-999);
+  const tGeo = new THREE.BufferGeometry();
+  tGeo.setAttribute('position', new THREE.BufferAttribute(tPos, 3));
+  tGeo.setAttribute('birth', new THREE.BufferAttribute(tBirth, 1));
+  const tMat = new THREE.ShaderMaterial({
+    uniforms: { uColor: amberColor, uNow: { value: 0 }, uK: { value: 300 }, uSize: { value: 1 }, uLife: { value: LIFE }, uDrift: { value: new THREE.Vector3() } },
+    vertexShader: `attribute float birth; uniform float uNow; uniform float uK; uniform float uSize; uniform float uLife; uniform vec3 uDrift; varying float vA;
+      void main(){ float age = clamp((uNow - birth) / uLife, 0.0, 1.0);
+        vA = pow(1.0 - age, 1.6) * 0.75;
+        vec4 mv = modelViewMatrix * vec4(position + uDrift * (age * uLife), 1.0);
+        gl_PointSize = uSize * (0.5 + age * 4.0) * uK / -mv.z;
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform vec3 uColor; varying float vA;
+      void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(uColor, smoothstep(0.5, 0.0, d) * vA); }`,
+    transparent: true, depthWrite: false,
+  });
+  const trail = new THREE.Points(tGeo, tMat);
+  trail.frustumCulled = false;
+  scene.add(trail);
+  let slot = 0;
+
+  /* ---------- the flight path ---------- */
+  let curve: THREE.CatmullRomCurve3;
+  let k = 1; // plane scale so it is ~85% of the screen width when close, on any screen
+  let aspect = 2;
+  const T = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+  // screen position (0..1 across, 0..1 down) + distance from camera  ->  point in the 3D world
+  const wp = (sx: number, sy: number, d: number) =>
+    new THREE.Vector3((sx * 2 - 1) * T * aspect * d, (1 - sy * 2) * T * d, camera.position.z - d);
+
+  function layout() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    aspect = w / h;
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    k = (0.85 * 2 * T * aspect * 10) / 10.8;
+    const K = h / (2 * T);
+    (glow.material as THREE.ShaderMaterial).uniforms.uK.value = K;
+    tMat.uniforms.uK.value = K;
+    tMat.uniforms.uSize.value = settled ? 0.36 * k : 0.45 * k;
+    // how far away the plane ends up (bigger number = smaller): a bit closer on phones so it stays visible
+    const restD = aspect < 1 ? 70 : 110;
+    curve = new THREE.CatmullRomCurve3([
+      wp(1.75, 0.46, 10),    // off the RIGHT edge, close to us (fully off screen)
+      wp(1.1, 0.46, 10),
+      wp(0.6, 0.44, 10.5),   // crossing the screen right to left, big
+      wp(0.3, 0.43, 12.5),
+      wp(0.03, 0.42, 22),    // swinging out to the left, turning away from us
+      wp(0.03, 0.36, 45),
+      wp(0.12, 0.31, restD * 0.8),
+      wp(0.2, 0.3, restD),   // flying off into the distance, up in the empty sky...
+      wp(0.3, 0.3, restD + 3), // ...ending side-on, heading right, small, on the left
+    ], false, 'centripetal');
+    plane.scale.setScalar(k);
+  }
+
+  const prog = { u: 0 };
+  const fwd = new THREE.Vector3();
+  const look = new THREE.Vector3();
+  const nose = new THREE.Vector3();
+  let started = false, settled = false;
+  let lastFlame = 0;
+  const restFwd = new THREE.Vector3();
+  const now = () => performance.now() / 1000;
+
+  // put the plane on the path at progress u (0..1), banking into the turn
+  function place(emit: boolean) {
+    const u = prog.u;
+    const pos = curve.getPoint(u);
+    fwd.copy(curve.getTangent(u)).normalize();
+    plane.position.copy(pos);
+    look.copy(pos).add(fwd);
+    plane.lookAt(look);
+    const bump = Math.sin(Math.PI * THREE.MathUtils.clamp((u - 0.3) / 0.45, 0, 1));
+    plane.rotateZ(0.6 * bump); // roll into the turn (a right turn now)
+    if (emit) {
+      const tail = pos.clone().addScaledVector(fwd, -5 * k);
+      tPos.set([tail.x, tail.y, tail.z], slot * 3);
+      tBirth[slot] = now();
+      slot = (slot + 1) % M;
+      tGeo.attributes.position.needsUpdate = true;
+      tGeo.attributes.birth.needsUpdate = true;
+    }
+    // tell the Intro where the plane is on screen (viewport pixels)
+    const rect = stage.getBoundingClientRect();
+    const sx = (v: THREE.Vector3) => rect.left + (v.clone().project(camera).x * 0.5 + 0.5) * rect.width;
+    nose.copy(pos).addScaledVector(fwd, 5.4 * k);
+    info.noseX = sx(nose); info.centerX = sx(pos); info.u = u;
+  }
+
+  // Once settled the engines keep burning: a short flame/plume keeps streaming out of the back.
+  function enterSettled() {
+    settled = true;
+    restFwd.copy(curve.getTangent(1)).normalize();
+    tMat.uniforms.uLife.value = 0.9;                       // short-lived, so it reads as a flame
+    tMat.uniforms.uSize.value = 0.36 * k;                  // thinner than the flight contrail
+    tMat.uniforms.uDrift.value.copy(restFwd).multiplyScalar(-1.6 * k); // streams backward
+  }
+  function emitFlame(t: number) {
+    if (t - lastFlame < 0.03) return;
+    lastFlame = t;
+    const jitter = () => (Math.random() - 0.5) * 0.3 * k;
+    const tail = plane.position.clone().addScaledVector(restFwd, -5.2 * k);
+    tPos.set([tail.x + jitter(), tail.y + jitter(), tail.z + jitter()], slot * 3);
+    tBirth[slot] = t;
+    slot = (slot + 1) % M;
+    tGeo.attributes.position.needsUpdate = true;
+    tGeo.attributes.birth.needsUpdate = true;
+  }
+
+  /* ---------- timeline ---------- */
+  function begin() {
+    if (started) return;
+    started = true;
+    // part 1: cross the screen, accelerating (reads as fast); part 2: turn away and ease into the distance
+    const tl = gsap.timeline();
+    tl.to(prog, { u: 0.42, duration: 2.1, ease: 'power1.in', onUpdate: () => place(true) });
+    tl.to(prog, { u: 1, duration: 6, ease: 'power2.out', onUpdate: () => place(true), onComplete: enterSettled });
+  }
+  function jumpToRest() { // skipped, reduced motion, or the intro gave up: just show the settled plane
+    started = true;
+    gsap.killTweensOf(prog);
+    prog.u = 1;
+    place(false);
+    if (!reduce) enterSettled(); else settled = true;
+    tBirth.fill(-999);
+    tGeo.attributes.birth.needsUpdate = true;
+  }
+
+  /* ---------- render loop (paused when the hero is off screen) ---------- */
+  let visible = true, raf = 0;
+  const frame = () => {
+    raf = 0;
+    if (!visible) return;
+    tMat.uniforms.uNow.value = now();
+    if (settled) { // gentle float once settled, with the flame still burning (not with reduce motion)
+      plane.position.y = curve.getPoint(1).y + Math.sin(now() * 0.7) * 0.35 * k;
+      if (!reduce) emitFlame(now());
+    }
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(frame);
+  };
+  new IntersectionObserver(([e]) => {
+    visible = e.isIntersecting;
+    if (visible && !raf) raf = requestAnimationFrame(frame);
+  }).observe(stage);
+
+  layout();
+  new ResizeObserver(() => { layout(); if (!started || settled) place(false); renderer.render(scene, camera); }).observe(stage);
+  // park the plane off screen until it starts
+  prog.u = 0; place(false);
+
+  info.ready = true;
+
+  if (reduce) {
+    jumpToRest();
+    renderer.render(scene, camera);
+  } else if (root.dataset.intro === 'play') {
+    // first visit: wait for the Intro to say go (or skip)
+    addEventListener('flight:start', begin, { once: true });
+    addEventListener('flight:skip', jumpToRest, { once: true });
+    if (!raf) raf = requestAnimationFrame(frame);
+  } else if (root.dataset.intro === 'done') {
+    jumpToRest(); // the intro gave up before we were ready
+    if (!raf) raf = requestAnimationFrame(frame);
+  } else {
+    setTimeout(begin, 250);
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+
+  // tell the Intro we are ready. This must come AFTER the listeners above are in place.
+  announce();
+</script>
+
+<style>
+  /* fade out toward the bottom (and a touch at the top) so clouds melt into the next section */
+  .flight {
+    position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 68%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 68%, transparent 100%);
+  }
+  /* during the intro the plane flies ABOVE the dark curtain */
+  :global(html[data-intro='play']) .flight { z-index: 101; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .clouds { position: absolute; left: 0; bottom: 0; width: 200%; height: 100%; fill: var(--dots); }
+  .clouds.far  { opacity: 0.07; filter: blur(6px);  animation: drift 140s linear infinite; }
+  .clouds.mid  { opacity: 0.09; filter: blur(8px);  animation: drift 80s linear infinite; }
+  .clouds.bank { opacity: 0.12; filter: blur(10px); animation: drift 55s linear infinite; }
+  @keyframes drift { to { transform: translateX(-50%); } }
+</style>
