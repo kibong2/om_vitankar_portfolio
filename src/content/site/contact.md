@@ -1,7 +1,6 @@
 ---
 title: Contact
-# TODO: replace the placeholder email and LinkedIn with your real ones.
-email: your.email@example.com
-linkedin: https://www.linkedin.com/in/your-profile
+email: om.vitankar@icloud.com
+linkedin: https://www.linkedin.com/in/om-vitankar/
 resume: /resume.pdf
 ---

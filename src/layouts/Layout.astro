@@ -53,7 +53,11 @@ const {
     <Altimeter />
     <header class="top">
       <div class="wrap bar">
-        <a class="brand" href={url('/')}>OV</a>
+        <a class="brand" href={url('/')} aria-label="Home"><svg class="sr71" viewBox="0 0 120 64" width="46" height="25" aria-hidden="true">
+        <path fill="currentColor" d="M119 32 L98 29.2 L80 26.5 L24 2 L14 4 L12 10 L10 27.5 L3 29 L3 35 L10 36.5 L12 54 L14 60 L24 62 L80 37.5 L98 34.8 Z" />
+        <rect x="20" y="16" width="40" height="7" rx="3.5" fill="currentColor" stroke="var(--bg)" stroke-width="1.2" />
+        <rect x="20" y="41" width="40" height="7" rx="3.5" fill="currentColor" stroke="var(--bg)" stroke-width="1.2" />
+      </svg></a>
         <nav class="intro-hide" aria-label="Main">
           <a href={url('/#about')}>About</a>
           <a href={url('/#projects')}>Projects</a>
@@ -95,7 +99,8 @@ const {
   .skip-link:focus { top: 0.5rem; }
   .top { border-bottom: 1px solid var(--line); }
   .bar { display: flex; justify-content: space-between; align-items: center; padding-block: 1rem; }
-  .brand { font-family: var(--font-mono); font-weight: 700; text-decoration: none; letter-spacing: 0.1em; }
+  .brand { display: inline-flex; align-items: center; color: var(--amber); }
+  .brand:hover { color: var(--text); }
   nav { display: flex; gap: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem; }
   nav a { text-decoration: none; color: var(--text); }
   nav a:hover { color: var(--amber); }
