@@ -45,6 +45,7 @@ collections:
       - { label: Show in featured (first on the console), name: featured, widget: boolean, default: false }
       - { label: Order (lower number = higher up), name: order, widget: number, value_type: int, default: 100 }
       - { label: Hide from the site (draft), name: draft, widget: boolean, default: false }
+      - { label: Interactive 3D demo on the project page, name: demo, widget: select, options: [airfoil], required: false }
       - { label: Story, name: body, widget: markdown }
 
   - name: activities

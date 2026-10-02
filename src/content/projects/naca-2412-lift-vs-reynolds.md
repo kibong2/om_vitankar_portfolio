@@ -11,6 +11,7 @@ links: []
 featured: true
 order: 1
 draft: false
+demo: airfoil
 ---
 
 ## What it is

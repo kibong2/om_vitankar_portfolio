@@ -3,6 +3,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { render } from 'astro:content';
 import { getProjects, tagClass } from '../../lib/projects';
+import Scene3D from '../../components/Scene3D.astro';
 import { url } from '../../lib/url';
 
 export async function getStaticPaths() {
@@ -22,11 +23,26 @@ const d = project.data;
     <p><span class={`tag ${tagClass(d.status)}`}>{d.status}</span></p>
     {d.cover && <img class="frame cover" src={url(d.cover)} alt={`${d.title} cover`} />}
     <p class="lead">{d.summary}</p>
+    {d.demo === 'airfoil' && (
+      <section class="demo">
+        <h2>Try it</h2>
+        <p>Drag the wing to turn it. Change the angle of attack and watch the air bend around it.</p>
+        <Scene3D kind="airfoil" label="NACA 2412" aoa="#aoa" model={url('/models/airfoil.glb')} description="3D NACA 2412 aerofoil with airflow dots" />
+        <label class="label" for="aoa">Angle of attack: <b data-aoa-out>4°</b></label>
+        <input id="aoa" type="range" min="-5" max="16" step="1" value="4" />
+      </section>
+    )}
     <div class="prose body"><Content /></div>
     {d.tools.length > 0 && (<><h2>Tools</h2><ul class="chips">{d.tools.map((t) => <li>{t}</li>)}</ul></>)}
     {d.links.length > 0 && (<><h2>Links</h2><ul class="chips">{d.links.map((l) => <li><a href={l.url}>{l.label}</a></li>)}</ul></>)}
   </article>
 </Layout>
+
+<script>
+  // Shows the slider's value next to its label (only on projects with the airfoil demo)
+  const aoa = document.getElementById('aoa') as HTMLInputElement | null;
+  aoa?.addEventListener('input', () => (document.querySelector('[data-aoa-out]')!.textContent = aoa.value + '°'));
+</script>
 
 <style>
   .page { padding-block: 3rem; max-width: 46rem; position: relative; z-index: 1; }
@@ -35,5 +51,8 @@ const d = project.data;
   h2 { font-size: 1.1rem; font-weight: 400; margin-top: 2.5rem; }
   .cover { width: 100%; margin: 1.5rem 0; }
   .lead { font-size: 1.15rem; }
+  .demo { margin: 2.5rem 0 1rem; }
+  .demo :global(.scene) { margin-top: 2.5rem; }
+  #aoa { width: 100%; max-width: 20rem; display: block; margin-top: 0.75rem; accent-color: var(--amber); }
   .body :global(h2) { margin-top: 2rem; }
 </style>

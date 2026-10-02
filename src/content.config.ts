@@ -20,6 +20,7 @@ const projects = defineCollection({
     featured: z.boolean().default(false), // true = shows on the homepage departure board
     order: z.number().default(100), // lower number = higher up
     draft: z.boolean().default(false), // true = hidden from the site
+    demo: z.enum(['airfoil']).optional(), // shows an interactive 3D demo on the project page
   }),
 });
 
