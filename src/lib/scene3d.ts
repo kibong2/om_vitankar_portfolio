@@ -345,7 +345,7 @@ async function setup(el: HTMLElement) {
     el.classList.add('nogl'); // no WebGL: the label/corners still show
     return;
   }
-  const pr = Math.min(devicePixelRatio, mobile ? 1 : 2);
+  const pr = Math.min(devicePixelRatio, mobile ? 1 : 1.5);
   renderer.setPixelRatio(pr);
   const mat = ditherMaterial(3 * pr);
 

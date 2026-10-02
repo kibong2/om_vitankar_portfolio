@@ -16,7 +16,7 @@
     .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   function resize() {
-    const dpr = Math.min(devicePixelRatio, 2);
+    const dpr = 1; // dots are big and soft: full retina resolution would cost 4x for no visible gain
     W = innerWidth; H = innerHeight;
     cv.width = W * dpr; cv.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -39,7 +39,7 @@
   function draw(t: number) {
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = color;
-    const off = -scrollY * 0.12; // slow parallax
+    const off = 0; // no scroll parallax: redrawing the dot field while scrolling made scrolling laggy
     const drift = reduce ? 0 : 1;
 
     // --- halftone clouds ---
@@ -93,17 +93,15 @@
     ctx.globalAlpha = 1;
   }
 
-  // ~30fps loop, paused when the tab is hidden; a single still frame with reduce motion
+  // ~10fps loop (the drift is very slow), paused when the tab is hidden; a single still frame with reduce motion
   resize();
   if (!reduce) {
     let lastDraw = 0;
     const tick = (now: number) => {
-      if (now - lastDraw > 33 && !document.hidden) { lastDraw = now; draw(now / 1000); }
+      if (now - lastDraw > 100 && !document.hidden) { lastDraw = now; draw(now / 1000); }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-  } else {
-    addEventListener('scroll', () => draw(0), { passive: true });
   }
 </script>
 

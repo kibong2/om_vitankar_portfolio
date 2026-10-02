@@ -5,8 +5,8 @@
 //   3. it ends as a small plane in the distance on the left, facing right, where it stays
 // The contrail is a trail of soft dots dropped along its real path that fade out, so it never cuts off.
 // On the first visit the Intro (Intro.astro) holds a dark curtain that this plane wipes away.
-// Clouds drift in layers behind and in front of the plane, and the whole layer fades out toward
-// the bottom so the clouds melt into the next section. With reduce motion: a still small plane.
+// Clouds drift in layers behind and in front of the plane; their soft edges and an empty strip at
+// the bottom let them melt into the next section. With reduce motion: a still small plane.
 
 // Seeded random so the clouds are the same on every build
 function rng(seed: number) {
@@ -30,14 +30,18 @@ function clouds(seed: number, clusters: number, yMin: number, yMax: number, rMin
 const layers = [
   { name: 'far', puffs: clouds(11, 7, 195, 265, 40, 80) },
   { name: 'mid', puffs: clouds(23, 6, 225, 300, 60, 110) },
-  { name: 'bank', puffs: clouds(37, 9, 290, 400, 90, 170) },
+  { name: 'bank', puffs: clouds(37, 9, 250, 320, 90, 170) },
 ];
 ---
 
 <div class="flight" aria-hidden="true" data-flight>
+  <!-- one soft-edged gradient shared by every cloud puff (much cheaper than blur filters) -->
+  <svg width="0" height="0" style="position:absolute"><defs>
+    <radialGradient id="hf-puff"><stop offset="0" style="stop-color:var(--dots)" stop-opacity="1" /><stop offset="0.55" style="stop-color:var(--dots)" stop-opacity="0.45" /><stop offset="1" style="stop-color:var(--dots)" stop-opacity="0" /></radialGradient>
+  </defs></svg>
   {layers.slice(0, 2).map((l) => (
     <svg class={`clouds ${l.name}`} viewBox="0 0 1000 400" preserveAspectRatio="none">
-      <g id={`hf-${l.name}`}>{l.puffs.map((p) => <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} />)}</g>
+      <g id={`hf-${l.name}`}>{l.puffs.map((p) => <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill="url(#hf-puff)" />)}</g>
       <use href={`#hf-${l.name}`} x="1000" />
     </svg>
   ))}
@@ -46,7 +50,7 @@ const layers = [
 
   <!-- front cloud bank: drawn over the plane so it can sink into the clouds -->
   <svg class="clouds bank" viewBox="0 0 1000 400" preserveAspectRatio="none">
-    <g id="hf-bank">{layers[2].puffs.map((p) => <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} />)}</g>
+    <g id="hf-bank">{layers[2].puffs.map((p) => <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill="url(#hf-puff)" />)}</g>
     <use href="#hf-bank" x="1000" />
   </svg>
 </div>
@@ -74,7 +78,7 @@ const layers = [
     announce();
     throw new Error('HeroFlight: WebGL unavailable');
   }
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); // 2x is much slower and barely looks different
 
   const FOV = 35;
   const camera = new THREE.PerspectiveCamera(FOV, 2, 0.5, 800);
@@ -290,9 +294,13 @@ const layers = [
 
   /* ---------- render loop (paused when the hero is off screen) ---------- */
   let visible = true, raf = 0;
+  let lastDraw = 0;
   const frame = () => {
     raf = 0;
     if (!visible) return;
+    // once settled nothing moves fast: 30 frames a second is plenty (saves battery and heat)
+    if (settled && now() - lastDraw < 1 / 30) { raf = requestAnimationFrame(frame); return; }
+    lastDraw = now();
     tMat.uniforms.uNow.value = now();
     if (settled) { // gentle float once settled, with the flame still burning (not with reduce motion)
       plane.position.y = curve.getPoint(1).y + Math.sin(now() * 0.7) * 0.35 * k;
@@ -334,18 +342,14 @@ const layers = [
 </script>
 
 <style>
-  /* fade out toward the bottom (and a touch at the top) so clouds melt into the next section */
-  .flight {
-    position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 68%, transparent 100%);
-            mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 68%, transparent 100%);
-  }
+  .flight { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
   /* during the intro the plane flies ABOVE the dark curtain */
   :global(html[data-intro='play']) .flight { z-index: 101; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .clouds { position: absolute; left: 0; bottom: 0; width: 200%; height: 100%; fill: var(--dots); }
-  .clouds.far  { opacity: 0.07; filter: blur(6px);  animation: drift 140s linear infinite; }
-  .clouds.mid  { opacity: 0.09; filter: blur(8px);  animation: drift 80s linear infinite; }
-  .clouds.bank { opacity: 0.12; filter: blur(10px); animation: drift 55s linear infinite; }
+  /* Clouds move with transform only (cheap, handled by the graphics card): no blur, no masks */
+  .clouds { position: absolute; left: 0; bottom: 0; width: 200%; height: 100%; will-change: transform; }
+  .clouds.far  { opacity: 0.12; animation: drift 140s linear infinite; }
+  .clouds.mid  { opacity: 0.14; animation: drift 80s linear infinite; }
+  .clouds.bank { opacity: 0.16; animation: drift 55s linear infinite; }
   @keyframes drift { to { transform: translateX(-50%); } }
 </style>
