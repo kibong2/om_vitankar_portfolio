@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import gsap from 'gsap';
+import { buildFoldingPass } from './foldingPass';
 
 type Kind = 'engine' | 'airfoil' | 'console' | 'pass';
 
@@ -78,6 +79,10 @@ interface Built {
   cameraZ: number;
   /** resting rotation */
   base: { x: number; y: number };
+  /** true = the object runs its own animation and pose (no drag / lean from the runner) */
+  custom?: boolean;
+  /** called whenever the canvas size changes, before the camera updates */
+  onResize?: (w: number, h: number) => void;
 }
 
 // Turbofan engine pod, like the Rolls-Royce Trent on an A380 / 747: rounded intake lip, spinning fan
@@ -293,34 +298,6 @@ function buildConsole(mat: THREE.Material, covers: string[]): Built & { setScree
   return { group, cameraZ: 7, base: { x: 0.1, y: -0.3 }, setScreen };
 }
 
-// Crumpled boarding pass: a flat sheet pushed around by noise. Hover = smooths out a little.
-function buildPass(mat: THREE.Material): Built {
-  const geo = new THREE.PlaneGeometry(1.8, 2.8, 40, 60);
-  const orig = geo.attributes.position.array.slice() as Float32Array;
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const apply = (c: number) => {
-    for (let i = 0; i < pos.count; i++) {
-      const x = orig[i * 3], y = orig[i * 3 + 1];
-      const n = Math.sin(x * 3.1 + y * 2.3) * 0.5 + Math.sin(x * 5.7 - y * 4.1 + 1.3) * 0.3 + Math.sin(x * 9.3 + y * 7.7) * 0.2;
-      const crease = Math.abs(Math.sin(x * 3.6 + y * 2.9 + 0.7)) * 0.35;
-      pos.setXYZ(i, x + Math.cos(y * 4) * 0.09 * c, y + Math.sin(x * 5) * 0.09 * c, (n * 0.3 + crease) * c);
-    }
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
-  };
-  let cur = 1, target = 1;
-  apply(cur);
-  const group = new THREE.Group();
-  group.add(new THREE.Mesh(geo, mat));
-  return {
-    group, cameraZ: 7, base: { x: 0.1, y: 0.2 },
-    update(_t, dt, hover) {
-      target = hover ? 0.6 : 1;
-      if (Math.abs(target - cur) > 0.002) { cur += (target - cur) * Math.min(1, dt * 4); apply(cur); }
-    },
-  };
-}
-
 /* ---------- Scene runner ---------- */
 interface Active { render(t: number, dt: number): void }
 const active = new Set<Active>();
@@ -358,7 +335,8 @@ async function setup(el: HTMLElement) {
   let built: Built =
     kind === 'engine' ? buildEngine(mat, 3 * pr) :
     kind === 'airfoil' ? buildAirfoil(mat, aoaInput) :
-    kind === 'console' ? buildConsole(mat, covers) : buildPass(mat);
+    kind === 'console' ? buildConsole(mat, covers) :
+    buildFoldingPass({ el, canvas, camera, cameraZ: 7.5, reduce: reduceMotion, mobile, pointer, cell: 3 * pr });
   scene.add(built.group);
   camera.position.z = built.cameraZ;
 
@@ -394,6 +372,7 @@ async function setup(el: HTMLElement) {
     const { clientWidth: w, clientHeight: h } = canvas;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
+    built.onResize?.(w, h);
     camera.updateProjectionMatrix();
   };
   new ResizeObserver(resize).observe(canvas);
@@ -419,6 +398,11 @@ async function setup(el: HTMLElement) {
   const tilt = { x: 0, y: 0 };
   const runner: Active = {
     render(t, dt) {
+      if (built.custom) { // runs its own animation (the folding boarding pass)
+        built.update?.(t, dt, false);
+        renderer.render(scene, camera);
+        return;
+      }
       if (!drag.down) { // inertia, then ease pitch back to rest
         drag.y += drag.vy; drag.x += drag.vx;
         drag.vx *= 0.94; drag.vy *= 0.94;
